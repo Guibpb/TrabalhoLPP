@@ -31,8 +31,8 @@ iniciar :-
     assertz(estado(p7, infectado)),
     assertz(estado(p4, isolado)),
     assertz(tempo_isolado(p4, 3)), %tempo default
-    assertz(tempo_infec(p2, 0)),
-    assertz(tempo_infec(p7, 0)),
+    assertz(tempo_infec(p2, 1)),
+    assertz(tempo_infec(p7, 1)),
     writeln("Simulacao iniciada.").
     
 run :-
@@ -60,11 +60,15 @@ loop(Dias, Max) :-
 
 rodada_infeccao :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados),
-    forall(member(PessoaInfectada, Infectados), infectar_conexoes(PessoaInfectada)).
+    forall(member(PessoaInfectada, Infectados), 
+        infectar_conexoes(PessoaInfectada)
+    ).
 
 infectar_conexoes(Infectado) :-
     findall(Pessoa, conexao(Pessoa, Infectado), Pessoas),
-    forall(member(Pessoa, Pessoas), ignore(infectar(Pessoa))).
+    forall(member(Pessoa, Pessoas), 
+        ignore(infectar(Pessoa))
+    ).
 
 infectar(Pessoa) :-
     estado(Pessoa, suscetivel),
@@ -73,17 +77,21 @@ infectar(Pessoa) :-
     R =< T,
     retract(estado(Pessoa, suscetivel)),
     assertz(estado(Pessoa, infectado)),
+    assertz(tempo_infec(Pessoa, 0)),
     format("Pessoa ~w se infectou.~n", Pessoa).
 
 rodada_cura :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados),
-    forall(member(Infectado, Infectados), ignore(curar(Infectado))).
+    forall(member(Infectado, Infectados), 
+        ignore(curar(Infectado))
+    ).
 
 curar(Infectado) :-
     tempo_infec(Infectado, X),
     taxa_cura(T),
-    T1 is T * (1 + (X ** 2)*0.1), %aumenta a taxa de cura de acordo com dias da infeccao
-    format("T1 = ~w~n", T1),
+    T1 is T * (0.6 + (X ** 2)*0.4), %aumenta a taxa de cura de acordo com dias da infeccao
+    format("Taxa de Cura: ~3f - ", T1),
+    format("Pessoa ~w~n", Infectado),
     random(R),
     R =< T1,
     retract(estado(Infectado, infectado)),
@@ -120,6 +128,36 @@ mostrar_tempos_isolamento :-
     estado(p4, X),
     format("~w~n", X).
 
+mostrar_estados :-
+    findall((Pessoa, Estado), estado(Pessoa,Estado), ListaTotal),
+    format("Estado atual: ~w~n", [ListaTotal]).
+
+mostrar_conexoes :-
+    findall((Pessoa1, Pessoa2), conecta(Pessoa1, Pessoa2), Lista),
+    format("Todas as conexoes: ~w~n", [Lista]).
+
+ler_dias :- 
+    write("Insira o numero de dias: "),
+    read(N),
+    integer(N),
+    loop(N).
+
+att_temp_infec :-
+    findall((P,X), tempo_infec(P,X), ListaTempos0),
+
+    forall(member((P,X), ListaTempos0), (
+        retractall(tempo_infec(P,_)), 
+        X1 is X + 1, 
+        assertz(tempo_infec(P, X1))
+    )),
+
+    findall((Pessoa, Tempo), tempo_infec(Pessoa, Tempo), ListaTempos),
+    format("Tempo de infeccao de todo mundo: ~w~n~n", [ListaTempos]).
+
+
+
+
+
 isolar_random :-
     random_between(1, 7, X),
     isolar(X),
@@ -152,30 +190,3 @@ isolar(6) :-
 isolar(7) :-
     retractall(estado(t7, _)),
     assertz(estado(t7, isolado)).    
-
-mostrar_estados :-
-    findall((Pessoa, Estado), estado(Pessoa,Estado), ListaTotal),
-    format("Estado atual: ~w~n", [ListaTotal]).
-
-mostrar_conexoes :-
-    findall((Pessoa1, Pessoa2), conecta(Pessoa1, Pessoa2), Lista),
-    format("Todas as conexoes: ~w~n", [Lista]).
-
-ler_dias :- 
-    write("Insira o numero de dias: "),
-    read(N),
-    integer(N),
-    loop(N).
-
-att_temp_infec :-
-    findall((P,X), tempo_infec(P,X), ListaTempos0),
-    format("~nTeste: ~w", [ListaTempos0]),
-
-    forall(member((P,X), ListaTempos0), (
-        retractall(tempo_infec(P,_)), 
-        X1 is X + 1, 
-        assertz(tempo_infec(P, X1))
-    )),
-
-    findall((Pessoa, Tempo), tempo_infec(Pessoa, Tempo), ListaTempos),
-    format("Tempo de infeccao de todo mundo: ~w~n~n", [ListaTempos]).
