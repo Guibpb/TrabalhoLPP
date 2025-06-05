@@ -1,5 +1,6 @@
 :- dynamic estado/2. %define estado como dinamico
 :- dynamic tempo_isolado/2.
+:- dynamic tempo_infec/2.
 
 %estados iniciais de conexao entre as pessoas 
 conecta(p1, p2).
@@ -9,6 +10,7 @@ conecta(p3, p4).
 conecta(p4, p5).
 conecta(p5, p6).
 conecta(p6, p2).
+conecta(p7, p5).
 conecta(p7, p4).
 
 conexao(A, B) :- conecta(A, B).
@@ -16,7 +18,7 @@ conexao(A, B) :- conecta(B, A).
 %define conexao como bidirecional
 
 taxa_infeccao(0.3).
-taxa_cura(0.5).
+taxa_cura(0.1).
 
 iniciar :-
     retractall(estado(_,_)),
@@ -29,21 +31,28 @@ iniciar :-
     assertz(estado(p7, infectado)),
     assertz(estado(p4, isolado)),
     assertz(tempo_isolado(p4, 3)), %tempo default
+    assertz(tempo_infec(p2, 0)),
+    assertz(tempo_infec(p7, 0)),
     writeln("Simulacao iniciada.").
     
 run :-
-    ler_dias.
+    findall(P, estado(P, infectado), I1),
+    format("Início do Dia - Infectados: ~w~n", [I1]),
+    rodada_infeccao,
+    rodada_cura,
+    rodada_isolamento,
+    att_temp_infec,
+    findall(P, estado(P, infectado), I2),
+    format("Final do Dia - Infectados: ~w~n", [I2]).
 
 loop(N) :-
     loop(1, N).
 
 loop(Dias, Max) :-
     Dias =< Max,
-    format("Dia ~w - ~n", Dias),
+    format("~nDia ~w - ~n", Dias),
     Temp is Dias + 1,
-    rodada_infeccao,
-    rodada_cura,
-    rodada_isolamento,
+    run,
     loop(Temp, Max).
 
 loop(Dias, Max) :-
@@ -51,8 +60,6 @@ loop(Dias, Max) :-
 
 rodada_infeccao :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados),
-    format("Infectados: ~w~n", [Infectados]),
-    ignore(verificar_contaminados([Infectados])),
     forall(member(PessoaInfectada, Infectados), infectar_conexoes(PessoaInfectada)).
 
 infectar_conexoes(Infectado) :-
@@ -73,10 +80,14 @@ rodada_cura :-
     forall(member(Infectado, Infectados), ignore(curar(Infectado))).
 
 curar(Infectado) :-
+    tempo_infec(Infectado, X),
     taxa_cura(T),
+    T1 is T * (1 + (X ** 2)*0.1), %aumenta a taxa de cura de acordo com dias da infeccao
+    format("T1 = ~w~n", T1),
     random(R),
-    R =< T,
+    R =< T1,
     retract(estado(Infectado, infectado)),
+    retract(tempo_infec(Infectado, X)),
     assertz(estado(Infectado, recuperado)),
     format("Pessoa ~w se curou.~n", Infectado).
 curar(_).
@@ -156,6 +167,15 @@ ler_dias :-
     integer(N),
     loop(N).
 
-verificar_contaminados([]) :-
-    writeln("Todos se curaram."),
-    halt(1).
+att_temp_infec :-
+    findall((P,X), tempo_infec(P,X), ListaTempos0),
+    format("~nTeste: ~w", [ListaTempos0]),
+
+    forall(member((P,X), ListaTempos0), (
+        retractall(tempo_infec(P,_)), 
+        X1 is X + 1, 
+        assertz(tempo_infec(P, X1))
+    )),
+
+    findall((Pessoa, Tempo), tempo_infec(Pessoa, Tempo), ListaTempos),
+    format("Tempo de infeccao de todo mundo: ~w~n~n", [ListaTempos]).
