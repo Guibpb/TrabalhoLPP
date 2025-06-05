@@ -1,9 +1,10 @@
-:- dynamic estado/2. %define estado como dinâmico
+:- dynamic estado/2. %define estado como dinamico
 :- dynamic tempo_isolado/2.
 
-%estados iniciais de conexão entre as pessoas 
+%estados iniciais de conexao entre as pessoas 
 conecta(p1, p2).
 conecta(p2, p3).
+conecta(p2, p4).
 conecta(p3, p4).
 conecta(p4, p5).
 conecta(p5, p6).
@@ -12,10 +13,10 @@ conecta(p7, p4).
 
 conexao(A, B) :- conecta(A, B).
 conexao(A, B) :- conecta(B, A).
-%define conexão como bidirecional
+%define conexao como bidirecional
 
 taxa_infeccao(0.3).
-taxa_cura(0.2).
+taxa_cura(0.5).
 
 iniciar :-
     retractall(estado(_,_)),
@@ -27,26 +28,31 @@ iniciar :-
     assertz(estado(p6, suscetivel)),
     assertz(estado(p7, infectado)),
     assertz(estado(p4, isolado)),
-    assertz(tempo_isolado(p4, 1)), %tempo default
-    writeln("Simulação iniciada.").
+    assertz(tempo_isolado(p4, 3)), %tempo default
+    writeln("Simulacao iniciada.").
     
 run :-
     ler_dias.
 
-loop(0) :-
-    !.
+loop(N) :-
+    loop(1, N).
 
-loop(Dias) :-
-    Dias > 0,
+loop(Dias, Max) :-
+    Dias =< Max,
     format("Dia ~w - ~n", Dias),
-    Temp is Dias-1,
+    Temp is Dias + 1,
     rodada_infeccao,
     rodada_cura,
-    loop(Temp).
+    rodada_isolamento,
+    loop(Temp, Max).
+
+loop(Dias, Max) :-
+    Dias > Max.
 
 rodada_infeccao :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados),
     format("Infectados: ~w~n", [Infectados]),
+    ignore(verificar_contaminados([Infectados])),
     forall(member(PessoaInfectada, Infectados), infectar_conexoes(PessoaInfectada)).
 
 infectar_conexoes(Infectado) :-
@@ -88,12 +94,12 @@ definir_isolamento(P, 0):-
     retract(tempo_isolado(Pessoa, 1)),
     assertz(tempo_isolado(Pessoa, 0)),
     retract(estado(P, isolado)),
-    assertz(estado(P, suscetivel)).
+    assertz(estado(P, suscetivel)),
+    format("Pessoa ~w saiu de isolamento~n", P).
 
 definir_isolamento(Pessoa, Y) :-
     Y > 0,
-    X is Y + 1,
-    retract(tempo_isolado(Pessoa, X)),
+    retractall(tempo_isolado(Pessoa, _)),
     assertz(tempo_isolado(Pessoa, Y)),
     !.
 
@@ -103,16 +109,53 @@ mostrar_tempos_isolamento :-
     estado(p4, X),
     format("~w~n", X).
 
+isolar_random :-
+    random_between(1, 7, X),
+    isolar(X),
+    format("Pessoa t~w se isolou aleatoriamente.~n", X).
+
+isolar(1):-
+    retractall(estado(t1, _)),
+    assertz(estado(t1, isolado)).
+
+isolar(2):-
+    retractall(estado(t2, _)),
+    assertz(estado(t2, isolado)).
+
+isolar(3) :-
+    retractall(estado(t3, _)),
+    assertz(estado(t3, isolado)).
+
+isolar(4) :-
+    retractall(estado(t4, _)),
+    assertz(estado(t4, isolado)).
+
+isolar(5) :-
+    retractall(estado(t5, _)),
+    assertz(estado(t5, isolado)).
+
+isolar(6) :-
+    retractall(estado(t6, _)),
+    assertz(estado(t6, isolado)).
+
+isolar(7) :-
+    retractall(estado(t7, _)),
+    assertz(estado(t7, isolado)).    
+
 mostrar_estados :-
     findall((Pessoa, Estado), estado(Pessoa,Estado), ListaTotal),
     format("Estado atual: ~w~n", [ListaTotal]).
 
 mostrar_conexoes :-
     findall((Pessoa1, Pessoa2), conecta(Pessoa1, Pessoa2), Lista),
-    format("Todas as conexões: ~w~n", [Lista]).
+    format("Todas as conexoes: ~w~n", [Lista]).
 
 ler_dias :- 
-    write("Insira o número de dias: "),
+    write("Insira o numero de dias: "),
     read(N),
     integer(N),
     loop(N).
+
+verificar_contaminados([]) :-
+    writeln("Todos se curaram."),
+    halt(1).
