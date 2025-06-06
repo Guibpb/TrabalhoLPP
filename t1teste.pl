@@ -1,39 +1,19 @@
 :- dynamic estado/2. %define estado como dinamico
 :- dynamic tempo_isolado/2.
 :- dynamic tempo_infec/2.
+:- dynamic conecta/2.
 
 %estados iniciais de conexao entre as pessoas 
-conecta(p1, p2).
-conecta(p2, p3).
-conecta(p2, p4).
-conecta(p3, p4).
-conecta(p4, p5).
-conecta(p5, p6).
-conecta(p6, p2).
-conecta(p7, p5).
-conecta(p7, p4).
 
 conexao(A, B) :- conecta(A, B).
-conexao(A, B) :- conecta(B, A).
-%define conexao como bidirecional
+conexao(A, B) :- conecta(B, A).%define conexao como bidirecional
 
 taxa_infeccao(0.3).
 taxa_cura(0.1).
 
 iniciar :-
-    retractall(estado(_,_)),
-    retractall(tempo_isolado(_,_)),
-    assertz(estado(p1, suscetivel)),
-    assertz(estado(p2, infectado)),
-    assertz(estado(p3, suscetivel)),
-    assertz(estado(p5, suscetivel)),
-    assertz(estado(p6, suscetivel)),
-    assertz(estado(p7, infectado)),
-    assertz(estado(p4, isolado)),
-    assertz(tempo_isolado(p4, 3)), %tempo default
-    assertz(tempo_infec(p2, 1)),
-    assertz(tempo_infec(p7, 1)),
-    writeln("Simulacao iniciada.").
+    writeln("Simulacao iniciada."),
+    quant_pessoas.
     
 run :-
     findall(P, estado(P, infectado), I1),
@@ -168,17 +148,24 @@ loop_pessoas(N) :-
 
 loop_pessoas(I, N) :-
     I =< N,
-    criar_pessoa(I),
+    criar_pessoa(I, N),
     I2 is I + 1,
     loop_pessoas(I2, N).
 
 loop_pessoas(I, N) :-
     I > N.
 
-criar_pessoa(Seq) :-
-    atomic_list_concat([p, Seq], S),
-    format("~w~n", S),
-    assertz(estado(S,suscetivel)).
+criar_pessoa(NumPessoa, Max) :-
+    atomic_list_concat([p, NumPessoa], Pessoa),
+    assertz(estado(Pessoa,suscetivel)),
+    retractall(conecta(Pessoa, _)),
+    ignore(definir_conexoes(NumPessoa, Pessoa, Max)).
+
+definir_conexoes(NumPessoa, Pessoa, Max) :-
+    NumPessoa < Max,
+    NumContato2 is NumPessoa + 1,
+    atomic_list_concat([p, NumContato2], Pessoa3),
+    assertz(conecta(Pessoa, Pessoa3)).
 
 isolar_random(N) :-
     random_between(1, N, X),
@@ -189,3 +176,5 @@ isolar(Num):-
     atomic_list_concat([p, Num], S),
     retractall(estado(S, _)),
     assertz(estado(S, isolado)).
+
+
