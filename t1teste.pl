@@ -74,8 +74,8 @@ rodada_cura :-
 
 curar(Infectado) :-
     tempo_infec(Infectado, X),
-    dias_cura(T),
-    T1 is X**2*(1/T**2), %aumenta a taxa de cura de acordo com dias da infeccao equacao y = (1/DiasCura²)x²
+    dias_cura(Dias),
+    T1 is X**2*(1/Dias**2), %aumenta a taxa de cura de acordo com dias da infeccao equacao y = (1/DiasCura²)x²
     %format("Taxa de Cura: ~3f - ", T1),
     %format("Pessoa ~w~n", Infectado),
     random(R),
