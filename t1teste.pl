@@ -69,7 +69,7 @@ infectar(Pessoa) :-
 rodada_cura :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados),
     forall(member(Infectado, Infectados), 
-        ignore(curar(Infectado))
+        curar(Infectado)
     ).
 
 curar(Infectado) :-
