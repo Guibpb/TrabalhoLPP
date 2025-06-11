@@ -1,3 +1,9 @@
+/*Alunos:
+Guilherme Borges de Pádua Barbosa - 15653045
+Gabriel Hupfer Rhigi - 15508612
+Tainara Lopes de Oliveira Terassaka - 13675501
+*/
+
 % - Definição de Predicados Dinâmicos 
 :- dynamic estado/2. 
 :- dynamic tempo_isolado/2.
