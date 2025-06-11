@@ -18,7 +18,6 @@ conexao(A, B) :- conecta(B, A).
 
 % - Predicado Principal
 main :-
-    retractall(tempo_infec(_,_)), retractall(tempo_isolado(_,_)),
     writeln("Menu Principal - Escolha uma opção abaixo."),
     writeln("1 - Inserir quantidade de pessoas"),
     writeln("2 - Inserir taxas de infecção/cura/morte."),
@@ -39,12 +38,13 @@ run(3) :-
 run(4) :-
     loop_dias.
 
-%run(0) :-*/
+run(0) :-
+    halt.
 
 /*Esse predicado lê a quantidade de pessoas e executa uma função de loop para 
 adicionar pessoas individualmente*/
 quant_pessoas :-
-    retractall(estado(_,_)), retractall(conecta(_,_)),
+    retractall(estado(_,_)), retractall(conecta(_,_)), retractall(tempo_infec(_,_)),
     retractall(populacao(_)), retractall(infectados(_)), %apaga todas as informações de predicados dinâmicos
 
     write("Insira o número de pessoas totais: "), read(NPessoa), integer(NPessoa), nl, 
@@ -124,7 +124,7 @@ infectar(Pessoa) :-
     assertz(tempo_infec(Pessoa, 0)), %Define o tempo
 
     infectados(X), Y is X + 1,
-    retractall(infectados(X)), assertz(infectados(Y))
+    retractall(infectados(X)), assertz(infectados(Y)),
     format("Pessoa ~w se infectou.~n", Pessoa).
 
 
@@ -164,7 +164,7 @@ medidas_prev :-
     loop_isol(1, Isol, X),
 
     SaudaveisAtt is Saudaveis - Isol, %Retira os isolados da lista de Saudáveis
-    writeln("2 - Pessoas vacinadas terão uma taxa de infecção consideravelmente mais baixa."),
+    writeln("2 - Pessoas vacinadas terão uma taxa de infecção e morte consideravelmente mais baixa."),
     format("Insira o número de pessoas vacinadas (de 0 até ~w): ", SaudaveisAtt), 
 
     read(Vac), integer(Vac), Vac >= 0, Vac =< SaudaveisAtt, nl, %Verifica se o número é válido
@@ -212,6 +212,7 @@ vacinar_random(N) :-
     random_between(1, N, X),
     atomic_list_concat([p,X], Pessoa), %Concatena o átomo como nome da pessoa 'pN'
     \+ estado(Pessoa, infectado), %Não pode estar infectado
+    \+ vacinado(Pessoa), %Não pode já ter sido vacinado
     vacinar(Pessoa),
     !.
 
@@ -249,6 +250,8 @@ loop_dias(I, N) :-
     4- aumenta o tempo de infecção para todos os infectados
 */  
 simular :-
+    findall((Pessoa, Estado), estado(Pessoa, Estado), Estados),
+    format("Estados no dia: ~w~n", [Estados]),
     rodada_infeccao,
     rodada_cura,
     rodada_isolamento,
@@ -270,6 +273,7 @@ infectar_conexoes(Infectado) :-
 
 %Se a pessoa for vacinada, a taxa de infecção diminui
 tentar_infec(Pessoa) :-
+    estado(Pessoa, suscetivel),
     vacinado(Pessoa),
     taxa_infeccao(T), 
     Tvac is T*0.3, %Taxa de infecção diminui em 70%
@@ -279,6 +283,7 @@ tentar_infec(Pessoa) :-
 
 %Pessoa não vacinada, taxa normal
 tentar_infec(Pessoa) :-
+    estado(Pessoa, suscetivel),
     \+ vacinado(Pessoa),
     taxa_infeccao(T),
     random(R),
@@ -299,10 +304,10 @@ curar(Infectado) :-
     tempo_infec(Infectado, X),
     dias_cura(Dias),
 
-    %Fórmula: y = (1 / Dias^2) * X^2
+    %Fórmula: y = (1 / Dias²) * X²
     %Essa equação faz a chance de cura crescer de forma quadrática.
     %Exemplo: se DiasCura = 10, a chance no dia 10 será 1 (100%), no dia 5 será 0.25(25%).
-    T1 is X**2 * (1 / Dias**2),
+    T1 is (1/Dias**2)*(X**2),
 
     % Número aleatório entre 0 e 1
     random(R),
@@ -314,10 +319,12 @@ curar(Infectado) :-
     assertz(estado(Infectado, suscetivel)),
 
     %Diminui por 1 o número de infectados
-    infectados(X),
-    NumAtt is X - 1,
-    retract(infectados(X)), assertz(infectados(NumAtt)),
+    infectados(NumInfec),
+    NumAtt is NumInfec - 1,
+    retract(infectados(_)), assertz(infectados(NumAtt)),
+
     format("Pessoa ~w se curou.~n", Infectado).
+    
         
 curar(_). %Se o predicado falhar, não retorna erro
 
@@ -362,13 +369,15 @@ definir_isolamento(Pessoa, Y) :-
 %Predicado para calcular a morte de pessoas infectadas
 rodada_morte :-
     findall(Pessoa, estado(Pessoa, infectado), Infectados), %Procura todos os infectados
+    format("Infectados: ~w~n", [Infectados]),
     forall(member(Infectado, Infectados), tentar_morte(Infectado)). %Para cada um, executa o predicado tentar_morte
 
 %Predicado para calcular a taxa de morte se o infectado for vacinado
 tentar_morte(Infectado) :-
     vacinado(Infectado),
     taxa_morte(T),
-    NovaTaxa is T * 0.1, %Taxa de morte diminui em 90% 
+    NovaTaxa is T * 0.1, %Taxa de morte diminui em 90%
+    format("Pessoa ~w é vacinada, portanto a taxa de morte diminui de: ~2f, para: ~2f~n", [Infectado, T, NovaTaxa]),
     calc_taxa_morte(Infectado, NovaTaxa). %Executa o predicado calc_taxa_morte/2
 
 %Se o infectado não for vacinado, a taxa de morte continua a mesma
@@ -382,57 +391,65 @@ tentar_morte(Infectado) :-
 
     Sendo as raízes do polinômio = [0, D], ou seja, a taxa de morte é perto de zero
     no início e no final da infecção, e na metade ela atinge seu ápice, que sempre
-    será igual à Taxa de morte inserida pelo usuário.
-*/
+    será igual à Taxa de morte inserida pelo usuário.*/
 calc_taxa_morte(Infectado, Taxa):-
-    dias_cura(Dia), tempo_infec(Infectado, TempoInfec),
-    A is ((-4)*Taxa)/Dia**2,
+    dias_cura(Dia), %Pesquisa a quantidade de dias para a doença se curar completamente
+    tempo_infec(Infectado, TempoInfec), %Descobre o tempo de infecção do doente
+
+    A is ((-4)*Taxa)/Dia**2, %Faz o calculo de A e B como coeficientes da equação quadrática
     B is (4*Taxa)/Dia,
 
-    NovaTaxa is TempoInfec**2*A + TempoInfec*B,
-    format("~nTaxa para o dia ~w", Dia),
-    format(" - ~3f~n~n", NovaTaxa),
-
-    random(R),
+    NovaTaxa is TempoInfec**2*A + TempoInfec*B, %NovaTaxa = f(x) e TempoInfec = x
+    random(R), 
     R =< NovaTaxa,
-    morte(infectado).
 
-calc_taxa_morte(_).
+    
+    morte(Infectado). %Mata o infectado
 
+calc_taxa_morte(_, _).
+
+%Predicado que "mata" a pessoa, retirando todos os seus estados
 morte(Pessoa) :-
-    retractall(estado(Pessoa, _)), retractall(tempo_infec(Pessoa, _)),
-    retractall(tempo_isolado(Pessoa, _)), retractall(vacinado(Pessoa)),
+    retractall(estado(Pessoa,_)),    
+    retractall(tempo_infec(Pessoa,_)),
+    retractall(tempo_isolado(Pessoa,_)), retractall(vacinado(Pessoa)),
 
-    populacao(Total), NovaPop is Total - 1, 
+    populacao(Total), NovaPop is Total - 1, %Diminui a população
     retract(populacao(Total)), assertz(populacao(NovaPop)),
 
-    infectados(Infec), NovoInfec is Infec - 1,
+    infectados(Infec), NovoInfec is Infec - 1, %Diminui o número de infectados também
     retract(infectados(Infec)), assertz(infectados(NovoInfec)),
-    format("A pessoa ~w morreu.~n", Pessoa).
 
+    format("A pessoa ~w morreu.~n", Pessoa). %Imprime na tela para mostrar quem "morreu"
+
+%Atualiza o tempo de infecção para todos os infectados, aumenta por 1 sempre.
 att_temp_infec :-
-    findall((P,X), tempo_infec(P,X), ListaTempos0),
-
-    forall(member((P,X), ListaTempos0), (
+    findall((P,X), tempo_infec(P,X), ListaTempos0), %Procura todos os tempos
+ 
+    forall(member((P,X), ListaTempos0), ( %Para cada tempo, retira o anterior e insere tempo + 1.
         retractall(tempo_infec(P,_)), 
         X1 is X + 1, 
         assertz(tempo_infec(P, X1))
     )).
 
+%Predicado não usado no código em si, para mostrar os resultados entre simulações
 mostrar_estados :-
-    findall(Pessoa, estado(Pessoa, suscetivel), ListaP),
-    findall(Pessoa, estado(Pessoa, infectado), ListaInf),
-    findall((Pessoa, Tempo), tempo_isolado(Pessoa,Tempo), ListaIso),
-    findall(Pessoa, vacinado(Pessoa), ListaVac),
-    format("Pessoas suscetiveis: ~w~n", [ListaP]),
+    findall(Pessoa, estado(Pessoa, suscetivel), ListaP), %Acha todos os suscetiveis,
+    findall(Pessoa, estado(Pessoa, infectado), ListaInf), %infectados,
+    findall((Pessoa, Tempo), tempo_isolado(Pessoa,Tempo), ListaIso), %isolados,
+    findall(Pessoa, vacinado(Pessoa), ListaVac), %e vacinados.
+
+    format("Pessoas suscetiveis: ~w~n", [ListaP]), %Imprime todas as listas na tela.
     format("Pessoas infectadas: ~w~n", [ListaInf]),
     format("Pessoas isoladas e tempo de isolamento: ~w~n", [ListaIso]),
     format("Pessoas vacinadas: ~w~n", [ListaVac]).
 
+%Predicado não usado no código em si, para mostrar as conexões em fila.
 mostrar_conexoes :-
     findall((Pessoa1, Pessoa2), conecta(Pessoa1, Pessoa2), Lista),
     format("Todas as conexoes: ~w~n", [Lista]).
 
+%Predicado não usado no código em si, para mostrar a quantidade de pessoas em cada tipo
 estatisticas:-
     infectados(Infec), populacao(Total), isolados(Isol), vacinados(Vac),
     Saudaveis is Total - Infec,
